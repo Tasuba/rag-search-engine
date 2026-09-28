@@ -59,11 +59,6 @@ def load_movies() -> list[Movie]:
     return data["movies"]
 
 
-def load_stopwords() -> list[str]:
-    with open(STOPWORDS_PATH, "r") as f:
-        return f.read().splitlines()
-
-
 def format_search_result(
     doc_id: int, title: str, document: str, score: float, **metadata: Any
 ) -> SearchResult:
