@@ -1,6 +1,6 @@
 import argparse
 
-from lib.keyword_search import search_command
+from lib.keyword_search import build_command, search_command
 
 
 def main() -> None:
@@ -10,6 +10,8 @@ def main() -> None:
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
 
+    subparsers.add_parser("build", help="Build and cache the inverted index")
+
     args = parser.parse_args()
 
     match args.command:
@@ -18,6 +20,8 @@ def main() -> None:
             results = search_command(args.query)
             for i, res in enumerate(results, 1):
                 print(f"{i}. {res['title']}")
+        case "build":
+            build_command()
         case _:
             parser.print_help()
 
