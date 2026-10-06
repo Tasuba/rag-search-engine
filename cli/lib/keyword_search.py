@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from nltk.stem import PorterStemmer
 
 from .search_utils import (
+    BM25_K1,
     CACHE_DIR,
     DEFAULT_SEARCH_LIMIT,
     STOPWORDS_PATH,
@@ -70,6 +71,10 @@ class InvertedIndex:
         doc_count = len(self.docmap)
         term_doc_count = len(self.index[term])
         return math.log((doc_count - term_doc_count + 0.5) / (term_doc_count + 0.5) + 1)
+
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+        tf = self.get_tf(doc_id, term)
+        return (tf * (k1 + 1)) / (tf + k1)
 
     def get_tf_idf(self, doc_id: int, term: str) -> float:
         tf = self.get_tf(doc_id, term)
@@ -145,6 +150,12 @@ def tf_command(doc_id: int, term: str) -> int:
     idx = InvertedIndex()
     idx.load()
     return idx.get_tf(doc_id, tokenize_single_term(term))
+
+
+def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1) -> float:
+    idx = InvertedIndex()
+    idx.load()
+    return idx.get_bm25_tf(doc_id, tokenize_single_term(term), k1)
 
 
 def idf_command(term: str) -> float:
