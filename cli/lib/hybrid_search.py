@@ -40,7 +40,7 @@ class WeightedSearchCommandResult(TypedDict):
 class RRFSearchCommandResult(TypedDict):
     original_query: str
     enhanced_query: str | None
-    enhance_method: Literal["spell", "rewrite"] | None
+    enhance_method: Literal["spell", "expand", "rewrite"] | None
     query: str
     k: int
     results: list[SearchResult]
@@ -246,7 +246,7 @@ def weighted_search_command(
 def rrf_search_command(
     query: str,
     k: int = RRF_K,
-    enhance: Literal["spell", "rewrite"] | None = None,
+    enhance: Literal["spell", "expand", "rewrite"] | None = None,
     limit: int = DEFAULT_SEARCH_LIMIT,
 ) -> RRFSearchCommandResult:
     movies = load_movies()
