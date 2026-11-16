@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Literal, TypedDict
 
@@ -15,6 +16,8 @@ from .search_utils import (
     load_movies,
 )
 from .semantic_search import ChunkedSemanticSearch
+
+logger = logging.getLogger(__name__)
 
 
 class CombinedScoreData(TypedDict):
@@ -247,6 +250,24 @@ def weighted_search_command(
     }
 
 
+def format_results_for_log(results: list[SearchResult]) -> str:
+    lines = []
+    for i, res in enumerate(results, 1):
+        metadata = res.get("metadata", {})
+        extras = []
+        for key in ("individual_score", "batch_rank", "crossencoder_score"):
+            if key in res:
+                extras.append(f"{key}={res[key]:.3f}")
+        lines.append(
+            f"  {i}. ({res['id']}) {res['title']} "
+            f"rrf={res.get('score', 0):.4f} "
+            f"bm25_rank={metadata.get('bm25_rank')} "
+            f"semantic_rank={metadata.get('semantic_rank')}"
+            + (f" {' '.join(extras)}" if extras else "")
+        )
+    return "\n".join(lines)
+
+
 def rrf_search_command(
     query: str,
     k: int = RRF_K,
@@ -258,18 +279,37 @@ def rrf_search_command(
     searcher = HybridSearch(movies)
 
     original_query = query
+    logger.debug("Original query: %r", original_query)
+
     enhanced_query = None
     if enhance:
         enhanced_query = enhance_query(query, method=enhance)
         query = enhanced_query
+        logger.debug("Enhanced query (%s): %r", enhance, enhanced_query)
+    else:
+        logger.debug("No query enhancement applied")
 
     search_limit = limit * SEARCH_MULTIPLIER if rerank_method else limit
     results = searcher.rrf_search(query, k, search_limit)
+    logger.debug(
+        "RRF search results (k=%d, %d results):\n%s",
+        k,
+        len(results),
+        format_results_for_log(results),
+    )
 
     reranked = False
     if rerank_method:
         results = rerank(query, results, method=rerank_method, limit=limit)
         reranked = True
+        logger.debug(
+            "Final results after %s re-ranking (%d results):\n%s",
+            rerank_method,
+            len(results),
+            format_results_for_log(results),
+        )
+    else:
+        logger.debug("No re-ranking applied")
 
     return {
         "original_query": original_query,
