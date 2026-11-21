@@ -1,4 +1,5 @@
 import os
+from typing import TypedDict
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -8,8 +9,55 @@ from .search_utils import (
     DEFAULT_SEARCH_LIMIT,
     RRF_K,
     SEARCH_MULTIPLIER,
+    SearchResult,
     load_movies,
 )
+
+
+class RagErrorResult(TypedDict):
+    query: str
+    search_results: list[SearchResult]
+    error: str
+
+
+class RagResult(TypedDict):
+    query: str
+    search_results: list[SearchResult]
+    answer: str
+
+
+class SummaryResult(TypedDict):
+    query: str
+    summary: str
+    search_results: list[SearchResult]
+
+
+class SummaryErrorResult(TypedDict):
+    query: str
+    error: str
+
+
+class CitationResult(TypedDict):
+    query: str
+    answer: str
+    search_results: list[SearchResult]
+
+
+class CitationErrorResult(TypedDict):
+    query: str
+    error: str
+
+
+class QuestionResult(TypedDict):
+    question: str
+    answer: str
+    search_results: list[SearchResult]
+
+
+class QuestionErrorResult(TypedDict):
+    question: str
+    error: str
+
 
 load_dotenv()
 api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -20,7 +68,9 @@ client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 model = "openrouter/free"
 
 
-def generate_answer(search_results, query, limit=5):
+def generate_answer(
+    search_results: list[SearchResult], query: str, limit: int = 5
+) -> str:
     context = ""
 
     for result in search_results[:limit]:
@@ -43,7 +93,9 @@ def generate_answer(search_results, query, limit=5):
     return (response.choices[0].message.content or "").strip()
 
 
-def generate_answer_with_citations(search_results, query, limit=5):
+def generate_answer_with_citations(
+    search_results: list[SearchResult], query: str, limit: int = 5
+) -> str:
     context = ""
 
     for i, result in enumerate(search_results[:limit], start=1):
@@ -75,7 +127,9 @@ def generate_answer_with_citations(search_results, query, limit=5):
     return (response.choices[0].message.content or "").strip()
 
 
-def multi_document_summary(search_results, query, limit=5):
+def multi_document_summary(
+    search_results: list[SearchResult], query: str, limit: int = 5
+) -> str:
     docs_text = ""
     for i, result in enumerate(search_results[:limit], start=1):
         docs_text += f"Document {i}: {result['title']}; {result['document']}\n\n"
@@ -100,7 +154,37 @@ def multi_document_summary(search_results, query, limit=5):
     return (response.choices[0].message.content or "").strip()
 
 
-def rag(query, limit=DEFAULT_SEARCH_LIMIT):
+def answer_question(
+    search_results: list[SearchResult], question: str, limit: int = 5
+) -> str:
+    context = ""
+
+    for i, result in enumerate(search_results[:limit], start=1):
+        context += f"[{i}]: {result['title']}; {result['document']}\n\n"
+
+    prompt = f"""Answer the user's question based on the provided movies that are available on Webflyx, a streaming service.
+
+    Question: {question}
+
+    Documents:
+    {context}
+
+    Instructions:
+    - Answer questions directly and concisely
+    - Be casual and conversational
+    - Don't be cringe or hype-y
+    - Talk like a normal person would in a chat conversation
+
+    Answer:"""
+
+    response = client.chat.completions.create(
+        model=model, messages=[{"role": "user", "content": prompt}]
+    )
+
+    return (response.choices[0].message.content or "").strip()
+
+
+def rag(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> RagResult | RagErrorResult:
     movies = load_movies()
     hybrid_search = HybridSearch(movies)
 
@@ -124,11 +208,11 @@ def rag(query, limit=DEFAULT_SEARCH_LIMIT):
     }
 
 
-def rag_command(query):
+def rag_command(query: str) -> RagResult | RagErrorResult:
     return rag(query)
 
 
-def summarize_command(query, limit=5):
+def summarize_command(query: str, limit: int = 5) -> SummaryResult | SummaryErrorResult:
     movies = load_movies()
     hybrid_search = HybridSearch(movies)
 
@@ -148,7 +232,9 @@ def summarize_command(query, limit=5):
     }
 
 
-def citations_command(query, limit=5):
+def citations_command(
+    query: str, limit: int = 5
+) -> CitationResult | CitationErrorResult:
     movies = load_movies()
     hybrid_search = HybridSearch(movies)
 
@@ -163,6 +249,26 @@ def citations_command(query, limit=5):
 
     return {
         "query": query,
+        "answer": result,
+        "search_results": search_results,
+    }
+
+
+def question_command(
+    question: str, limit: int = 5
+) -> QuestionResult | QuestionErrorResult:
+    movies = load_movies()
+    hybrid_search = HybridSearch(movies)
+
+    search_results = hybrid_search.rrf_search(question, k=RRF_K)
+
+    if not search_results:
+        return {"question": question, "error": "No results found"}
+
+    result = answer_question(search_results, question, limit)
+
+    return {
+        "question": question,
         "answer": result,
         "search_results": search_results,
     }
