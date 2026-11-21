@@ -61,7 +61,7 @@ class InvertedIndex:
 
     def get_documents(self, term: str) -> list[int]:
         doc_ids = self.index.get(term, set())
-        return sorted(list(doc_ids))
+        return sorted(doc_ids)
 
     def __add_document(self, doc_id: int, text: str) -> None:
         tokens = tokenize_text(text)
